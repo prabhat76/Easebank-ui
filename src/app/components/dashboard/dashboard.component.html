@@ -1,44 +1,50 @@
 <div class="dashboard-container">
   <div class="dashboard-header">
     <h1>Dashboard</h1>
-    @if (user) {
+    @if (user$ | async; as user) {
       <div class="welcome-message">
-        <h2>Welcome back, {{ user.name }}!</h2>
+        <h2>Welcome back, {{ user.firstName }} {{ user.lastName }}!</h2>
       </div>
     }
   </div>
 
-  @if (loading) {
+  @if (accountsLoading$ | async) {
     <div class="loading-state">
       <div class="spinner"></div>
       <p>Loading your accounts...</p>
     </div>
   }
 
-  @if (!loading) {
+  @if (accounts$ | async; as accounts) {
     <div class="dashboard-content">
       <!-- Account Summary -->
       <div class="summary-card">
         <h3>Total Balance</h3>
-        <div class="total-balance">${{ getTotalBalance().toFixed(2) }}</div>
+        <div class="total-balance">${{ getTotalBalance(accounts).toFixed(2) }}</div>
         <p>Across {{ accounts.length }} accounts</p>
       </div>
 
       <!-- Accounts Grid -->
-      <div class="accounts-grid">
-        @for (account of accounts; track account.id) {
-          <div class="account-card" [class]="getAccountTypeClass(account.accountType)">
-            <div class="account-header">
-              <h4>{{ account.accountType.charAt(0).toUpperCase() + account.accountType.slice(1) }} Account</h4>
-              <span class="account-status" [class.active]="account.isActive">
-                {{ account.isActive ? 'Active' : 'Inactive' }}
-              </span>
+      @if (accounts.length > 0) {
+        <div class="accounts-grid">
+          @for (account of accounts; track account.accountId) {
+            <div class="account-card" [class]="getAccountTypeClass(account.accountType)">
+              <div class="account-header">
+                <h4>{{ account.accountType.charAt(0).toUpperCase() + account.accountType.slice(1) }} Account</h4>
+                <span class="account-status active">
+                  Active
+                </span>
+              </div>
+              <div class="account-number">****{{ account.accountNumber.slice(-4) }}</div>
+              <div class="account-balance">${{ account.balance.toFixed(2) }}</div>
             </div>
-            <div class="account-number">****{{ account.accountNumber.slice(-4) }}</div>
-            <div class="account-balance">${{ account.balance.toFixed(2) }}</div>
-          </div>
-        }
-      </div>
+          }
+        </div>
+      } @else {
+        <div class="no-accounts">
+          <p>No accounts found. Please contact support.</p>
+        </div>
+      }
 
       <!-- Quick Actions -->
       <div class="quick-actions">

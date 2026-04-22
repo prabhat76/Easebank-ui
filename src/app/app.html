@@ -1,5 +1,5 @@
 <div class="min-h-screen bg-gray-50" [class.native-app]="isNative">
-  @if (isAuthenticated) {
+  @if (isAuthenticated$ | async) {
     <!-- Top Navigation - Desktop Only -->
     <nav class="bg-white shadow-sm border-b mobile-safe-area hidden md:block">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

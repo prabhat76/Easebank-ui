@@ -1,24 +1,13 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
-import { AccountService } from '../../services/account.service';
-import { AuthService } from '../../services/auth.service';
-
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  accounts: Account[];
-}
-
-interface Account {
-  id: string;
-  accountNumber: string;
-  accountType: 'checking' | 'savings' | 'credit';
-  balance: number;
-  currency: string;
-  isActive: boolean;
-}
+import { Store } from '@ngrx/store';
+import { Observable } from 'rxjs';
+import { AppState } from '../../store/app.state';
+import { selectUser } from '../../store/auth/auth.selectors';
+import { selectAccounts, selectAccountsLoading } from '../../store/account/account.selectors';
+import { Account } from '../../store/account/account.actions';
+import { AuthUser } from '../../services/auth.service';
 
 @Component({
   selector: 'app-dashboard',
@@ -28,50 +17,34 @@ interface Account {
   styleUrls: ['./dashboard.component.css']
 })
 export class DashboardComponent implements OnInit {
-  user: User | null = null;
-  accounts: Account[] = [];
-  loading = true;
+  private store = inject(Store<AppState>);
+  private router = inject(Router);
 
-  constructor(
-    private accountService: AccountService,
-    private authService: AuthService,
-    private router: Router
-  ) {}
+  user$: Observable<AuthUser | null> = this.store.select(selectUser);
+  accounts$: Observable<Account[]> = this.store.select(selectAccounts);
+  accountsLoading$: Observable<boolean> = this.store.select(selectAccountsLoading);
 
   ngOnInit(): void {
-    this.loadUserData();
-  }
-
-  loadUserData(): void {
-    this.authService.currentUser$.subscribe(authUser => {
-      if (authUser) {
-        // Map AuthUser to User with accounts
-        this.user = {
-          id: authUser.id,
-          name: authUser.name,
-          email: authUser.email,
-          accounts: [
-            {
-              id: '1',
-              accountNumber: '1234567890',
-              accountType: 'checking',
-              balance: 5000,
-              currency: 'USD',
-              isActive: true
-            },
-            {
-              id: '2',
-              accountNumber: '0987654321',
-              accountType: 'savings',
-              balance: 15000,
-              currency: 'USD',
-              isActive: true
-            }
-          ]
-        };
-        this.accounts = this.user.accounts;
-        this.loading = false;
+    console.log('📊 Dashboard component initialized');
+    
+    // Debug observables with more detailed logging
+    this.user$.subscribe(user => {
+      console.log('👤 Dashboard user:', user);
+      if (user) {
+        console.log('👤 User ID for accounts:', user.id);
       }
+    });
+    
+    this.accounts$.subscribe(accounts => {
+      console.log('🏦 Dashboard accounts:', accounts);
+      console.log('🏦 Accounts length:', accounts?.length || 0);
+      if (accounts && accounts.length > 0) {
+        console.log('🏦 First account:', accounts[0]);
+      }
+    });
+    
+    this.accountsLoading$.subscribe(loading => {
+      console.log('⏳ Accounts loading state:', loading);
     });
   }
 
@@ -83,8 +56,8 @@ export class DashboardComponent implements OnInit {
     this.router.navigate(['/transactions']);
   }
 
-  getTotalBalance(): number {
-    return this.accounts.reduce((total, account) => total + account.balance, 0);
+  getTotalBalance(accounts: Account[]): number {
+    return accounts.reduce((total, account) => total + account.balance, 0);
   }
 
   getAccountTypeClass(type: string): string {

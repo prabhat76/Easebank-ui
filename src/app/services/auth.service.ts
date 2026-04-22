@@ -1,6 +1,6 @@
 import { Injectable, Inject, PLATFORM_ID, inject } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 import { BehaviorSubject, Observable, throwError, catchError, tap, map } from 'rxjs';
 
 export interface LoginCredentials {
@@ -9,10 +9,11 @@ export interface LoginCredentials {
 }
 
 export interface AuthUser {
-  id: string;
-  name: string;
+  id: number;        // Changed from string to number to match Spring Boot
+  firstName: string; // Match backend User entity fields
+  lastName: string;
   email: string;
-  token: string;
+  token?: string;    // Optional since backend doesn't use JWT
 }
 
 export interface LoginResponse {
@@ -46,20 +47,58 @@ export class AuthService {
   login(credentials: LoginCredentials): Observable<AuthUser> {
     this.isLoadingSubject.next(true);
     
-    return this.http.post<LoginResponse>(`${this.baseUrl}/auth/login`, credentials).pipe(
+    const headers = new HttpHeaders({
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    });
+
+    const body = {
+      email: credentials.email.trim(),
+      password: credentials.password
+    };
+
+    console.log('🚀 Login Request Details:');
+    console.log('URL:', `${this.baseUrl}/auth/login`);
+    console.log('Method: POST');
+    console.log('Headers:', Object.fromEntries(headers.keys().map(key => [key, headers.get(key)])));
+    console.log('Body:', body);
+    
+    return this.http.post<any>(`${this.baseUrl}/auth/login`, body, { headers }).pipe(
+      tap(response => {
+        console.log('✅ Raw API Response:', response);
+        console.log('Response type:', typeof response);
+        console.log('Response keys:', Object.keys(response || {}));
+      }),
       map(response => {
-        if (response.success && response.data) {
+        console.log('🔄 Processing response:', response);
+        
+        // Handle different response formats from Spring Boot
+        if (response && response.id && response.email) {
+          // Direct user object from Spring Boot
+          console.log('✅ Direct user response from Spring Boot');
           return {
-            id: response.data.user.id,
-            name: response.data.user.name,
-            email: response.data.user.email,
-            token: response.data.token
+            id: response.id,
+            firstName: response.firstName || response.first_name || 'User',
+            lastName: response.lastName || response.last_name || '',
+            email: response.email,
+            token: 'session-' + Date.now() // Generate session token since backend doesn't use JWT
+          };
+        } else if (response && response.success && response.data) {
+          console.log('✅ Success response with data');
+          return {
+            id: response.data.id,
+            firstName: response.data.firstName || response.data.first_name || 'User',
+            lastName: response.data.lastName || response.data.last_name || '',
+            email: response.data.email,
+            token: response.data.token || 'session-' + Date.now()
           };
         } else {
-          throw new Error(response.message || 'Login failed');
+          console.log('❌ Invalid response format:', response);
+          throw new Error(response?.message || 'Invalid response format from server');
         }
       }),
       tap(user => {
+        console.log('✅ Login successful, user:', user);
         this.currentUserSubject.next(user);
         if (isPlatformBrowser(this.platformId)) {
           localStorage.setItem('easebank_user', JSON.stringify(user));
@@ -69,16 +108,30 @@ export class AuthService {
       }),
       catchError((error: HttpErrorResponse) => {
         this.isLoadingSubject.next(false);
+        
+        console.log('❌ Login Error Details:');
+        console.log('Status:', error.status);
+        console.log('Status Text:', error.statusText);
+        console.log('Error Object:', error.error);
+        console.log('Full Error:', error);
+        
         let errorMessage = 'Login failed. Please try again.';
         
         if (error.error?.message) {
           errorMessage = error.error.message;
+        } else if (error.error?.error) {
+          errorMessage = error.error.error;
         } else if (error.status === 401) {
           errorMessage = 'Invalid email or password.';
         } else if (error.status === 0) {
           errorMessage = 'Unable to connect to server. Please check your internet connection.';
+        } else if (error.status === 404) {
+          errorMessage = 'Login endpoint not found.';
+        } else if (error.status === 500) {
+          errorMessage = 'Server error. Please try again later.';
         }
         
+        console.log('Final error message:', errorMessage);
         return throwError(() => new Error(errorMessage));
       })
     );

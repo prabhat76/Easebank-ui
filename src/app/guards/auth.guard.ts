@@ -1,15 +1,29 @@
 import { inject } from '@angular/core';
 import { Router } from '@angular/router';
-import { AuthService } from '../services/auth.service';
+import { Store } from '@ngrx/store';
+import { map, take } from 'rxjs/operators';
+import { AppState } from '../store/app.state';
+import { selectIsAuthenticated } from '../store/auth/auth.selectors';
 
 export const authGuard = () => {
-  const authService = inject(AuthService);
+  const store = inject(Store<AppState>);
   const router = inject(Router);
 
-  if (authService.isAuthenticated) {
-    return true;
-  }
+  console.log('🛡️ Auth guard triggered');
 
-  router.navigate(['/login']);
-  return false;
+  return store.select(selectIsAuthenticated).pipe(
+    take(1),
+    map(isAuthenticated => {
+      console.log('🛡️ Auth guard - isAuthenticated:', isAuthenticated);
+      
+      if (isAuthenticated) {
+        console.log('✅ Auth guard - Access granted');
+        return true;
+      } else {
+        console.log('❌ Auth guard - Access denied, redirecting to login');
+        router.navigate(['/login']);
+        return false;
+      }
+    })
+  );
 };
